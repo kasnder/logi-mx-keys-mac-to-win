@@ -42,13 +42,42 @@ def save_config(cfg):
         json.dump(cfg, f, indent=2)
 
 
-def is_bt_device_connected(device_name: str) -> bool:
-    """Check if a Bluetooth device is connected via PowerShell/PnP."""
+def _get_bt_address(device_name: str) -> str | None:
+    """Resolve a Bluetooth device's address from its friendly name."""
     try:
         result = subprocess.run(
             [
                 "powershell", "-NoProfile", "-Command",
-                f"(Get-PnpDevice -FriendlyName '{device_name}' -ErrorAction SilentlyContinue).Status",
+                f"(Get-PnpDevice -FriendlyName '{device_name}' -ErrorAction SilentlyContinue"
+                f" | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Bluetooth_DeviceAddress').Data",
+            ],
+            capture_output=True, text=True, timeout=10,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+        addr = result.stdout.strip()
+        return addr.upper() if addr else None
+    except Exception:
+        return None
+
+
+# Cache the BT address so we only resolve it once
+_bt_address_cache: dict[str, str | None] = {}
+
+
+def is_bt_device_connected(device_name: str) -> bool:
+    """Check if a BT keyboard is actually connected by checking its HID child device."""
+    if device_name not in _bt_address_cache:
+        _bt_address_cache[device_name] = _get_bt_address(device_name)
+
+    bt_addr = _bt_address_cache[device_name]
+    if not bt_addr:
+        return False
+
+    try:
+        result = subprocess.run(
+            [
+                "powershell", "-NoProfile", "-Command",
+                f"(Get-PnpDevice -Class Keyboard -InstanceId '*{bt_addr}*' -ErrorAction SilentlyContinue).Status",
             ],
             capture_output=True, text=True, timeout=10,
             creationflags=subprocess.CREATE_NO_WINDOW,
