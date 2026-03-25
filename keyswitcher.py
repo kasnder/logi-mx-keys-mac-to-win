@@ -48,14 +48,12 @@ def is_bt_device_connected(device_name: str) -> bool:
         result = subprocess.run(
             [
                 "powershell", "-NoProfile", "-Command",
-                f"(Get-PnpDevice -FriendlyName '{device_name}' -ErrorAction SilentlyContinue | "
-                f"Where-Object {{ $_.Status -eq 'OK' }}).Count",
+                f"(Get-PnpDevice -FriendlyName '{device_name}' -ErrorAction SilentlyContinue).Status",
             ],
             capture_output=True, text=True, timeout=10,
             creationflags=subprocess.CREATE_NO_WINDOW,
         )
-        count = result.stdout.strip()
-        return count.isdigit() and int(count) > 0
+        return result.stdout.strip() == "OK"
     except Exception:
         return False
 
