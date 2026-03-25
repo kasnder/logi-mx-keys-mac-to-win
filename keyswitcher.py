@@ -126,7 +126,7 @@ class KeySwitcherApp:
         self.hook_thread = None
         self.tray_icon = None
         self._active = False
-        self._auto_mode = False
+        self._auto_mode = True
         self._bt_poll_thread = None
         self._running = True
         self.config = load_config()
@@ -197,11 +197,9 @@ class KeySwitcherApp:
         self._bt_poll_thread = threading.Thread(target=self._bt_poll_loop, daemon=True)
         self._bt_poll_thread.start()
 
-        # If auto_detect is enabled in config, start in auto mode
-        if self.config.get("auto_detect", False):
-            self._auto_mode = True
-            connected = is_bt_device_connected(self.config["bt_device_name"])
-            self._set_active(connected)
+        # Check keyboard state immediately on startup
+        connected = is_bt_device_connected(self.config["bt_device_name"])
+        self._set_active(connected)
 
         device_name = self.config["bt_device_name"]
 
