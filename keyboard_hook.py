@@ -9,6 +9,9 @@ VK_LWIN = 0x5B
 VK_RWIN = 0x5C
 VK_LMENU = 0xA4  # Left Alt
 VK_RMENU = 0xA5  # Right Alt
+VK_LCONTROL = 0xA2
+VK_Q = 0x51
+VK_VOLUME_UP = 0xAF
 
 # Scan codes
 SC_LWIN = 0x5B
@@ -142,6 +145,9 @@ class KeyboardHook:
         self._thread_id = None
         self._enabled = False
         self._callback = HOOKPROC(self._hook_proc)
+        # Track physical key state for combo detection
+        self._lwin_down = False
+        self._lctrl_down = False
 
     @property
     def enabled(self):
@@ -164,6 +170,17 @@ class KeyboardHook:
 
             is_up = wParam in (WM_KEYUP, WM_SYSKEYUP)
             is_extended = bool(flags & LLKHF_EXTENDED)
+
+            # Track physical key state (before swap) for combo detection
+            if vk == VK_LWIN:
+                self._lwin_down = not is_up
+            if vk == VK_LCONTROL:
+                self._lctrl_down = not is_up
+
+            # Combo: Win+Ctrl+Q (fn+lock on Mac keyboard) -> Volume Up
+            if vk == VK_Q and self._lwin_down and self._lctrl_down:
+                send_key(VK_VOLUME_UP, 0, is_up, extended=False)
+                return 1
 
             # Left Win -> Left Alt
             if vk == VK_LWIN:
@@ -189,7 +206,7 @@ class KeyboardHook:
 
     def install(self):
         """Install the keyboard hook. Must be called from the hook thread."""
-        h_mod = kernel32.GetModuleHandleW(None)
+        h_mod = kernel32.GetModuleHandleW("user32.dll")
         self._hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._callback, h_mod, 0)
         if not self._hook:
             raise ctypes.WinError(ctypes.get_last_error())
