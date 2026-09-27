@@ -1,102 +1,22 @@
 """KeySwitcher - Windows tray app to swap Win <-> Alt keys for Mac keyboards."""
 
-import json
 import os
-import subprocess
 import sys
 import threading
-import time
 
 from PIL import Image, ImageDraw, ImageFont
 import pystray
 
 from keyboard_hook import KeyboardHook
 
-CONFIG_DIR = os.path.join(os.environ.get("APPDATA", ""), "KeySwitcher")
-CONFIG_FILE = os.path.join(CONFIG_DIR, "config.json")
-
-DEFAULT_CONFIG = {
-    "bt_device_name": "MX KEYS S MAC",
-    "auto_detect": True,
-    "poll_interval_seconds": 5,
-}
-
-
-def load_config():
-    os.makedirs(CONFIG_DIR, exist_ok=True)
-    if os.path.exists(CONFIG_FILE):
-        with open(CONFIG_FILE, "r") as f:
-            cfg = json.load(f)
-        # Merge with defaults for any missing keys
-        for k, v in DEFAULT_CONFIG.items():
-            cfg.setdefault(k, v)
-        return cfg
-    # First run - write defaults
-    save_config(DEFAULT_CONFIG)
-    return dict(DEFAULT_CONFIG)
-
-
-def save_config(cfg):
-    os.makedirs(CONFIG_DIR, exist_ok=True)
-    with open(CONFIG_FILE, "w") as f:
-        json.dump(cfg, f, indent=2)
-
-
-def _get_bt_address(device_name: str) -> str | None:
-    """Resolve a Bluetooth device's address from its friendly name."""
-    try:
-        result = subprocess.run(
-            [
-                "powershell", "-NoProfile", "-Command",
-                f"(Get-PnpDevice -FriendlyName '{device_name}' -ErrorAction SilentlyContinue"
-                f" | Get-PnpDeviceProperty -KeyName 'DEVPKEY_Bluetooth_DeviceAddress').Data",
-            ],
-            capture_output=True, text=True, timeout=10,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        addr = result.stdout.strip()
-        return addr.upper() if addr else None
-    except Exception:
-        return None
-
-
-# Cache the BT address so we only resolve it once
-_bt_address_cache: dict[str, str | None] = {}
-
-
-def is_bt_device_connected(device_name: str) -> bool:
-    """Check if a BT keyboard is actually connected by checking its HID child device."""
-    if device_name not in _bt_address_cache:
-        _bt_address_cache[device_name] = _get_bt_address(device_name)
-
-    bt_addr = _bt_address_cache[device_name]
-    if not bt_addr:
-        return False
-
-    try:
-        result = subprocess.run(
-            [
-                "powershell", "-NoProfile", "-Command",
-                f"(Get-PnpDevice -Class Keyboard -InstanceId '*{bt_addr}*' -ErrorAction SilentlyContinue).Status",
-            ],
-            capture_output=True, text=True, timeout=10,
-            creationflags=subprocess.CREATE_NO_WINDOW,
-        )
-        return result.stdout.strip() == "OK"
-    except Exception:
-        return False
-
-
-def create_icon_image(active: bool, auto: bool = False) -> Image.Image:
-    """Create a tray icon. Green=ON, Gray=OFF, Blue=AUTO."""
+def create_icon_image(active: bool) -> Image.Image:
+    """Create a tray icon. Green=ON, Gray=OFF."""
     size = 64
     img = Image.new('RGBA', (size, size), (0, 0, 0, 0))
     draw = ImageDraw.Draw(img)
 
     if active:
         bg_color = (76, 175, 80, 255)    # Green
-    elif auto:
-        bg_color = (33, 150, 243, 255)   # Blue (auto mode, waiting)
     else:
         bg_color = (158, 158, 158, 255)  # Gray
     draw.ellipse([2, 2, size - 2, size - 2], fill=bg_color)
@@ -155,10 +75,6 @@ class KeySwitcherApp:
         self.hook_thread = None
         self.tray_icon = None
         self._active = False
-        self._auto_mode = True
-        self._bt_poll_thread = None
-        self._running = True
-        self.config = load_config()
 
     def _start_hook_thread(self):
         def run():
@@ -177,25 +93,13 @@ class KeySwitcherApp:
 
     def _update_icon(self):
         if self.tray_icon:
-            self.tray_icon.icon = create_icon_image(self._active, self._auto_mode)
+            self.tray_icon.icon = create_icon_image(self._active)
             status = "ON" if self._active else "OFF"
-            mode = " (Auto)" if self._auto_mode else ""
-            self.tray_icon.title = f"KeySwitcher - {status}{mode}"
+            self.tray_icon.title = f"KeySwitcher - {status}"
 
     def toggle(self, icon=None, item=None):
-        """Manual toggle — disables auto mode."""
-        if self._auto_mode:
-            self._auto_mode = False
+        """Toggle swapping until the next launch."""
         self._set_active(not self._active)
-
-    def toggle_auto(self, icon=None, item=None):
-        """Toggle Bluetooth auto-detection mode."""
-        self._auto_mode = not self._auto_mode
-        if self._auto_mode:
-            # Immediately check current state
-            connected = is_bt_device_connected(self.config["bt_device_name"])
-            self._set_active(connected)
-        self._update_icon()
 
     def toggle_startup(self, icon=None, item=None):
         if is_startup_enabled():
@@ -203,17 +107,7 @@ class KeySwitcherApp:
         else:
             enable_startup()
 
-    def _bt_poll_loop(self):
-        """Background thread that polls Bluetooth device status."""
-        while self._running:
-            if self._auto_mode:
-                connected = is_bt_device_connected(self.config["bt_device_name"])
-                if connected != self._active:
-                    self._set_active(connected)
-            time.sleep(self.config.get("poll_interval_seconds", 5))
-
     def quit_app(self, icon=None, item=None):
-        self._running = False
         self.hook.enabled = False
         self.hook.stop_message_loop()
         if self.tray_icon:
@@ -221,27 +115,13 @@ class KeySwitcherApp:
 
     def run(self):
         self._start_hook_thread()
-
-        # Start Bluetooth polling thread
-        self._bt_poll_thread = threading.Thread(target=self._bt_poll_loop, daemon=True)
-        self._bt_poll_thread.start()
-
-        # Check keyboard state immediately on startup
-        connected = is_bt_device_connected(self.config["bt_device_name"])
-        self._set_active(connected)
-
-        device_name = self.config["bt_device_name"]
+        self._set_active(True)
 
         menu = pystray.Menu(
             pystray.MenuItem(
                 lambda item: f"Swap Keys: {'ON' if self._active else 'OFF'}",
                 self.toggle,
                 default=True,
-            ),
-            pystray.Menu.SEPARATOR,
-            pystray.MenuItem(
-                lambda item: f"Auto ({device_name}): {'ON' if self._auto_mode else 'OFF'}",
-                self.toggle_auto,
             ),
             pystray.Menu.SEPARATOR,
             pystray.MenuItem(
@@ -253,8 +133,8 @@ class KeySwitcherApp:
 
         self.tray_icon = pystray.Icon(
             name="KeySwitcher",
-            icon=create_icon_image(self._active, self._auto_mode),
-            title="KeySwitcher - OFF",
+            icon=create_icon_image(self._active),
+            title=f"KeySwitcher - {'ON' if self._active else 'OFF'}",
             menu=menu,
         )
 

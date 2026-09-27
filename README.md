@@ -14,14 +14,15 @@ When using a Mac-layout keyboard on Windows:
 
 - **Swaps Command ↔ Option** so the keys behave like a standard Windows layout
 - **Maps fn + lock key → Volume Up** so your volume controls work correctly
-- **Auto-detects your Bluetooth keyboard** — swap activates when the MX Keys connects and deactivates when it disconnects
+- **Corrects the ^ and < key positions** on the Mac ISO keyboard with a German Windows layout
+- **Enables swapping when the app starts** — works with Bluetooth or a Logi Bolt receiver
 - **Runs silently in the system tray** with a simple toggle
 
 ## Requirements
 
 - Windows 10/11
 - Python 3.10+
-- Logitech MX Keys S for Mac (or any Mac-layout keyboard — see [Configuration](#configuration))
+- Logitech MX Keys S for Mac (or another Mac-layout keyboard)
 
 ## Installation
 
@@ -48,13 +49,11 @@ The app runs in the **system tray** (bottom-right of your taskbar):
 | Icon | Meaning |
 |------|---------|
 | Green circle | Swap is **ON** |
-| Blue circle | Auto mode, keyboard not connected (waiting) |
-| Gray circle | Everything **OFF** |
+| Gray circle | Swap is **OFF** |
 
 **Right-click the tray icon** to access:
 
-- **Swap Keys: ON/OFF** — manual toggle (double-click also works)
-- **Auto (MX KEYS S MAC): ON/OFF** — auto-enable based on Bluetooth connection
+- **Swap Keys: ON/OFF** — manual toggle (double-click also works); swapping turns on again when the app starts
 - **Start with Windows: ON/OFF** — launch automatically on login
 - **Quit**
 
@@ -64,28 +63,16 @@ The app runs in the **system tray** (bottom-right of your taskbar):
 |--------------------------|-------------|----------|
 | Command (⌘) | Win key | Alt |
 | Option (⌥) | Alt | Win key |
+| ^ key (left of 1) | < key position | ^ key position |
+| < key (right of left Shift) | ^ key position | < key position |
 | fn + Lock key | Win+Ctrl+Q (nothing) | Volume Up |
 | fn + F12 | Volume Down | Volume Down (unchanged) |
-
-## Configuration
-
-The app auto-detects the **MX KEYS S MAC** keyboard by default. To use with a different Bluetooth keyboard:
-
-1. Find your keyboard's name in Windows Bluetooth settings
-2. Edit `%APPDATA%\KeySwitcher\config.json`:
-   ```json
-   {
-     "bt_device_name": "YOUR KEYBOARD NAME",
-     "auto_detect": true,
-     "poll_interval_seconds": 5
-   }
-   ```
 
 ## How It Works
 
 - Uses a **low-level keyboard hook** (`WH_KEYBOARD_LL`) to intercept and remap keys before any application sees them
-- Detects Bluetooth connectivity by checking the **HID Keyboard child device** status via Windows PnP (the BLE parent device always reports "OK" even when disconnected)
-- Runs with minimal overhead — the Bluetooth check polls every 5 seconds via PowerShell
+- Swaps the two ISO scan codes so Shift and the selected Windows keyboard layout still determine the typed character
+- Swapping is on while the app runs, unless you turn it off with the tray icon
 
 ## Start with Windows
 

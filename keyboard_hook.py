@@ -1,4 +1,4 @@
-"""Low-level keyboard hook to swap Win <-> Alt keys."""
+"""Low-level keyboard hook for Mac-layout keys on Windows."""
 
 import ctypes
 import ctypes.wintypes as wintypes
@@ -18,6 +18,8 @@ SC_LWIN = 0x5B
 SC_RWIN = 0x5C
 SC_LALT = 0x38
 SC_RALT = 0x38
+SC_CARET = 0x29       # Key left of 1 on a German keyboard
+SC_ANGLE = 0x56       # ISO key right of the left Shift key
 
 # Hook constants
 WH_KEYBOARD_LL = 13
@@ -31,6 +33,7 @@ LLKHF_INJECTED = 0x00000010
 LLKHF_EXTENDED = 0x00000001
 KEYEVENTF_KEYUP = 0x0002
 KEYEVENTF_EXTENDEDKEY = 0x0001
+KEYEVENTF_SCANCODE = 0x0008
 
 # Win32 API
 user32 = ctypes.WinDLL('user32', use_last_error=True)
@@ -120,13 +123,15 @@ user32.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), c_int]
 user32.SendInput.restype = wintypes.UINT
 
 
-def send_key(vk, scan, is_up, extended=False):
+def send_key(vk, scan, is_up, extended=False, use_scan=False):
     """Send a synthetic key event."""
     inp = INPUT()
     inp.type = 1  # INPUT_KEYBOARD
     inp.union.ki.wVk = vk
     inp.union.ki.wScan = scan
     inp.union.ki.dwFlags = 0
+    if use_scan:
+        inp.union.ki.dwFlags |= KEYEVENTF_SCANCODE
     if is_up:
         inp.union.ki.dwFlags |= KEYEVENTF_KEYUP
     if extended:
@@ -138,7 +143,7 @@ def send_key(vk, scan, is_up, extended=False):
 
 
 class KeyboardHook:
-    """Installs a low-level keyboard hook that swaps Win and Alt keys."""
+    """Installs a low-level keyboard hook that corrects Mac-layout keys."""
 
     def __init__(self):
         self._hook = None
@@ -170,6 +175,13 @@ class KeyboardHook:
 
             is_up = wParam in (WM_KEYUP, WM_SYSKEYUP)
             is_extended = bool(flags & LLKHF_EXTENDED)
+
+            # The Mac ISO keyboard reports the ^ and < positions reversed.
+            # Inject scan codes so Windows applies the active layout and Shift.
+            if not is_extended and kb.scanCode in (SC_CARET, SC_ANGLE):
+                replacement = SC_ANGLE if kb.scanCode == SC_CARET else SC_CARET
+                send_key(0, replacement, is_up, use_scan=True)
+                return 1
 
             # Track physical key state (before swap) for combo detection
             if vk == VK_LWIN:
