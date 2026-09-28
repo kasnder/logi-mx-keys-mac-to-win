@@ -8,6 +8,7 @@ from PIL import Image, ImageDraw, ImageFont
 import pystray
 
 from keyboard_hook import KeyboardHook
+from logitech_lock import LockKeyListener
 
 def create_icon_image(active: bool) -> Image.Image:
     """Create a tray icon. Green=ON, Gray=OFF."""
@@ -75,6 +76,7 @@ class KeySwitcherApp:
         self.hook_thread = None
         self.tray_icon = None
         self._active = False
+        self.lock_listener = LockKeyListener(enabled=lambda: self.hook.enabled)
 
     def _start_hook_thread(self):
         def run():
@@ -109,6 +111,7 @@ class KeySwitcherApp:
 
     def quit_app(self, icon=None, item=None):
         self.hook.enabled = False
+        self.lock_listener.stop()
         self.hook.stop_message_loop()
         if self.tray_icon:
             self.tray_icon.stop()
@@ -116,6 +119,7 @@ class KeySwitcherApp:
     def run(self):
         self._start_hook_thread()
         self._set_active(True)
+        self.lock_listener.start()
 
         menu = pystray.Menu(
             pystray.MenuItem(
@@ -138,7 +142,10 @@ class KeySwitcherApp:
             menu=menu,
         )
 
-        self.tray_icon.run()
+        try:
+            self.tray_icon.run()
+        finally:
+            self.lock_listener.stop()
 
 
 def main():

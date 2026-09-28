@@ -15,6 +15,7 @@ When using a Mac-layout keyboard on Windows:
 - **Swaps Command ↔ Option** so the keys behave like a standard Windows layout
 - **Maps fn + lock key → Volume Up** so your volume controls work correctly
 - **Corrects the ^ and < key positions** on the Mac ISO keyboard with a German Windows layout
+- **Locks Windows from the Mini's top-right special key** — supported on MX Keys Mini for Mac via Logi Bolt
 - **Enables swapping when the app starts** — works with Bluetooth or a Logi Bolt receiver
 - **Runs silently in the system tray** with a simple toggle
 
@@ -73,6 +74,12 @@ The app runs in the **system tray** (bottom-right of your taskbar):
 - Uses a **low-level keyboard hook** (`WH_KEYBOARD_LL`) to intercept and remap keys before any application sees them
 - Swaps the two ISO scan codes so Shift and the selected Windows keyboard layout still determine the typed character
 - Swapping is on while the app runs, unless you turn it off with the tray icon
+
+### MX Keys Mini for Mac lock key
+
+The Mini's top-right Do Not Disturb/lock key is a Logitech special control that the ordinary Windows keyboard hook cannot see. Through a Logi Bolt receiver, the app enables temporary HID++ reporting for that single button and calls Windows' lock function once per press. It restores the button's previous reporting setting when you turn swapping off or quit the app. Restarting the app enables it again.
+
+This special-button support currently targets the **MX Keys Mini for Mac over Bolt**. The regular key swaps remain independent of how the keyboard connects. After updating, run `python -m pip install -r requirements.txt` to install the HID library used for the lock button.
 
 ## Start with Windows
 
