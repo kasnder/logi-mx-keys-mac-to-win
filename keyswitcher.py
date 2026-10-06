@@ -9,6 +9,7 @@ import pystray
 
 from keyboard_hook import KeyboardHook
 from logitech_lock import LockKeyListener
+from logitech_backlight import BacklightController
 
 def create_icon_image(active: bool) -> Image.Image:
     """Create a tray icon. Green=ON, Gray=OFF."""
@@ -77,6 +78,38 @@ class KeySwitcherApp:
         self.tray_icon = None
         self._active = False
         self.lock_listener = LockKeyListener(enabled=lambda: self.hook.enabled)
+        self.backlight = BacklightController(self._refresh_menu)
+
+    def _refresh_menu(self):
+        if self.tray_icon:
+            self.tray_icon.update_menu()
+
+    def _backlight_items(self):
+        controller = self.backlight
+        state = controller.state
+        def choice(label, field, value, selected):
+            def apply(icon, item):
+                controller.request(field, value)
+            return pystray.MenuItem(label, apply, checked=lambda item: selected,
+                                    radio=True, enabled=lambda item: not controller.busy)
+        if state:
+            for label, value in [('Off', -1), ('Automatic', 1), ('Manual', 3)]:
+                if value == -1 or state.supported & (8 if value == 1 else 32):
+                    yield choice(label, 'mode', value, state.mode == value)
+            if state.supported & 32 and controller.levels:
+                yield pystray.MenuItem('Brightness (selecting enables manual mode)', pystray.Menu(*[
+                    choice(str(n), 'level', n, state.level == n and state.mode == 3)
+                    for n in range(controller.levels)]))
+            for label, field in [('Hands away timeout', 'hands_away'), ('Hands nearby timeout', 'hands_near'), ('USB power timeout', 'powered')]:
+                seconds = getattr(state, field) * 5
+                values = sorted(set([5, 15, 30, 60, 120, 300, 600, seconds]))
+                yield pystray.MenuItem(f'{label}: {seconds}s', pystray.Menu(*[
+                    choice(f'{n} seconds', field, n, seconds == n) for n in values if 5 <= n <= 600]))
+        else:
+            yield pystray.MenuItem(controller.status, None, enabled=False)
+        yield pystray.Menu.SEPARATOR
+        yield pystray.MenuItem('Refresh from keyboard', lambda icon, item: controller.request(),
+                               enabled=lambda item: not controller.busy)
 
     def _start_hook_thread(self):
         def run():
@@ -128,6 +161,7 @@ class KeySwitcherApp:
                 default=True,
             ),
             pystray.Menu.SEPARATOR,
+            pystray.MenuItem('Backlight', pystray.Menu(self._backlight_items)),
             pystray.MenuItem(
                 lambda item: f"Start with Windows: {'ON' if is_startup_enabled() else 'OFF'}",
                 self.toggle_startup,
@@ -143,6 +177,7 @@ class KeySwitcherApp:
         )
 
         try:
+            self.backlight.request()
             self.tray_icon.run()
         finally:
             self.lock_listener.stop()

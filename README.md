@@ -58,6 +58,17 @@ The app runs in the **system tray** (bottom-right of your taskbar):
 - **Start with Windows: ON/OFF** — launch automatically on login
 - **Quit**
 
+### Backlight controls
+
+The **Backlight** tray submenu controls the MX Keys Mini for Mac over Logi Bolt:
+
+- Off, Automatic, or Manual illumination.
+- Brightness levels reported by the keyboard (0–7 on the tested Mini). Selecting a level enables Manual mode.
+- Separate timeouts for hands away, hands nearby, and USB power, from 5 seconds to 10 minutes.
+- **Refresh from keyboard** reads current values, including changes made outside this app. Wake a sleeping keyboard before refreshing.
+
+Settings are read when the app starts. Changes are written directly to the keyboard and read back for verification; the app does not override them at startup or periodically reapply them. Firmware determines whether they survive a power cycle. Backlight controls work independently of the key-swap toggle. Existing timeouts are preserved when changing brightness or mode.
+
 ## Key Mappings
 
 | Physical Key (Mac Layout) | Without App | With App |
@@ -88,6 +99,10 @@ Toggle "Start with Windows" from the tray menu. This creates a small VBScript la
 ```
 del "%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\KeySwitcher.vbs"
 ```
+
+## Acknowledgements
+
+Thanks to [Solaar](https://github.com/pwr-Solaar/Solaar) and its contributors for documenting and implementing Logitech's HID++ protocol. Solaar's [device capability documentation](https://pwr-solaar.github.io/Solaar/capabilities/) and source code were valuable references for this project's special-key handling and BACKLIGHT2 illumination controls, including brightness modes and timeout settings.
 
 ## License
 

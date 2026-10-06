@@ -27,7 +27,8 @@ def lock_windows():
 class BoltConnection:
     """Read both receiver collections: short requests can have long replies."""
 
-    def __init__(self, paths, hid_module):
+    def __init__(self, paths, hid_module, software_id=SOFTWARE_ID):
+        self.software_id = software_id
         self.handles = {}
         self.on_event = lambda packet: None
         try:
@@ -48,7 +49,7 @@ class BoltConnection:
         return b""
 
     def request(self, slot, feature, function, params=b"", timeout=2.0):
-        address = (function << 4) | SOFTWARE_ID
+        address = (function << 4) | getattr(self, 'software_id', SOFTWARE_ID)
         long_report = len(params) > 3
         report_id, size, usage = (0x11, 20, 2) if long_report else (0x10, 7, 1)
         packet = bytes([report_id, slot, feature, address]) + params
