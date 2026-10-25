@@ -15,7 +15,7 @@ When using a Mac-layout keyboard on Windows:
 - **Swaps Command ↔ Option** so the keys behave like a standard Windows layout
 - **Maps fn + lock key → Volume Up** so your volume controls work correctly
 - **Corrects the ^ and < key positions** on the Mac ISO keyboard with a German Windows layout
-- **Locks Windows from the Mini's top-right special key** — supported on MX Keys Mini for Mac via Logi Bolt
+- **Locks Windows from the Mini's top-right special key** — supported on MX Keys Mini for Mac via Logi Bolt or Bluetooth
 - **Enables swapping when the app starts** — works with Bluetooth or a Logi Bolt receiver
 - **Runs silently in the system tray** with a simple toggle
 
@@ -88,9 +88,9 @@ Settings are read when the app starts. Changes are written directly to the keybo
 
 ### MX Keys Mini for Mac lock key
 
-The Mini's top-right Do Not Disturb/lock key is a Logitech special control that the ordinary Windows keyboard hook cannot see. Through a Logi Bolt receiver, the app enables temporary HID++ reporting for that single button and calls Windows' lock function once per press. It restores the button's previous reporting setting when you turn swapping off or quit the app. Restarting the app enables it again.
+The Mini's top-right Do Not Disturb/lock key is a Logitech special control that the ordinary Windows keyboard hook cannot see. Through a Logi Bolt receiver or the keyboard's Bluetooth HID++ interface, the app enables temporary reporting for that single button and calls Windows' lock function once per press. It restores the button's previous reporting setting when you turn swapping off or quit the app. Restarting the app enables it again. Switching connections can take roughly 45 seconds to be detected.
 
-This special-button support currently targets the **MX Keys Mini for Mac over Bolt**. The regular key swaps remain independent of how the keyboard connects. After updating, run `python -m pip install -r requirements.txt` to install the HID library used for the lock button.
+This special-button support targets the **MX Keys Mini for Mac over Bolt or Bluetooth** (Bluetooth product ID `B36A`). The regular key swaps remain independent of how the keyboard connects. After updating, run `python -m pip install -r requirements.txt` to install the HID library used for the lock button.
 
 ## Start with Windows
 

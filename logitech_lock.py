@@ -1,4 +1,4 @@
-"""Handle the MX Keys Mini for Mac special key over a Bolt receiver.
+"""Handle the MX Keys Mini for Mac special key over Bolt or Bluetooth.
 
 HID++ 0x1B04 temporary diversion exposes the otherwise invisible DND/lock
 button as control 0x011D. Only this control is changed; restore its original
@@ -50,7 +50,7 @@ class BoltConnection:
 
     def request(self, slot, feature, function, params=b"", timeout=2.0):
         address = (function << 4) | getattr(self, 'software_id', SOFTWARE_ID)
-        long_report = len(params) > 3
+        long_report = len(params) > 3 or 1 not in self.handles
         report_id, size, usage = (0x11, 20, 2) if long_report else (0x10, 7, 1)
         packet = bytes([report_id, slot, feature, address]) + params
         if self.handles[usage].write(packet.ljust(size, b"\0")) <= 0:
@@ -87,8 +87,15 @@ def receiver_paths(hid_module):
     return [paths for paths in receivers.values() if 1 in paths and 2 in paths]
 
 
-def find_keyboard(connection, stopped):
-    for slot in range(1, 7):
+def bluetooth_paths(hid_module):
+    """The Mini's Bluetooth HID++ collection only carries long reports."""
+    return [{2: device["path"]} for device in hid_module.enumerate(0x046D, 0xB36A)
+            if device.get("bus_type") == 2
+            and device["usage_page"] == 0xFF43 and device["usage"] == 0x0202]
+
+
+def find_keyboard(connection, stopped, slots=range(1, 7)):
+    for slot in slots:
         if stopped.is_set():
             return None
         try:
@@ -188,15 +195,19 @@ class LockKeyListener:
             return
         while not self.stopped.is_set():
             if self.enabled():
-                try:
-                    for paths in receiver_paths(hid):
+                candidates = ([(paths, (0xFF,)) for paths in bluetooth_paths(hid)]
+                              + [(paths, range(1, 7)) for paths in receiver_paths(hid)])
+                for paths, slots in candidates:
+                    if self.stopped.is_set() or not self.enabled():
+                        break
+                    try:
                         connection = BoltConnection(paths, hid)
                         try:
-                            target = find_keyboard(connection, self.stopped)
+                            target = find_keyboard(connection, self.stopped, slots)
                             if target and self.enabled() and not self.stopped.is_set():
                                 self._listen(connection, *target)
                         finally:
                             connection.close()
-                except OSError:
-                    LOG.warning("Logitech lock-key connection unavailable", exc_info=True)
+                    except OSError:
+                        LOG.warning("Logitech lock-key connection unavailable", exc_info=True)
             self.stopped.wait(2)

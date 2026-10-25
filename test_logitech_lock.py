@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import Mock
 
 from logitech_lock import (
-    BoltConnection, CONTROL, LockKeyListener, get_diverted, receiver_paths, set_diverted,
+    BoltConnection, CONTROL, LockKeyListener, bluetooth_paths, get_diverted, receiver_paths, set_diverted,
 )
 
 
@@ -12,6 +12,27 @@ def notification(slot=6, feature=8, control=CONTROL):
 
 
 class LockKeyTests(unittest.TestCase):
+    def test_bluetooth_uses_long_report_and_direct_address(self):
+        connection = BoltConnection.__new__(BoltConnection)
+        handle = Mock()
+        handle.write.return_value = 20
+        handle.read.return_value = list(bytes([0x11, 255, 8, 0x2B]) + b"\x01\x1d\x01" + bytes(13))
+        connection.handles = {2: handle}
+        connection.on_event = Mock()
+        self.assertTrue(get_diverted(connection, 255, 8))
+        handle.write.assert_called_once_with(
+            (b"\x11\xff\x08\x2b\x01\x1d").ljust(20, b"\0"))
+
+    def test_bluetooth_only_opens_vendor_collection(self):
+        hid = Mock()
+        hid.enumerate.return_value = [
+            dict(bus_type=2, usage_page=0xFF43, usage=0x0202, path=b"vendor"),
+            dict(bus_type=2, usage_page=1, usage=6, path=b"keyboard"),
+            dict(bus_type=1, usage_page=0xFF43, usage=0x0202, path=b"usb"),
+        ]
+        self.assertEqual(bluetooth_paths(hid), [{2: b"vendor"}])
+        hid.enumerate.assert_called_once_with(0x046D, 0xB36A)
+
     def test_press_once_until_released(self):
         action = Mock()
         listener = LockKeyListener(lambda: True, action)
